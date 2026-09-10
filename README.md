@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ちょこっと整体 予約システム
 
-## Getting Started
+出張整体向けの予約 Web。管理者が開催（日付・時間帯・コマ）を作り、ランダム URL を渡す。予約者はその URL から空きコマを1つ選ぶ。
 
-First, run the development server:
+## 開発
+
+```bash
+npm install
+```
+
+`.env.example` を `.env.local` にコピーし、実値を入れてから:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+[http://localhost:3000](http://localhost:3000) を開く。初回だけ `/signup` で管理者を1人作る。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+仕様は [`Docs/README.md`](./Docs/README.md) を正とする。
 
-## Learn More
+## 環境変数
 
-To learn more about Next.js, take a look at the following resources:
+| 名前 | 用途 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase プロジェクト URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key（ブラウザ用。DB への直接書き込みには使わない） |
+| `SUPABASE_SERVICE_ROLE_KEY` | サーバ専用。開催・予約の読み書きと管理者ユーザー操作 |
+| `RESEND_API_KEY` | 予約・取消メール |
+| `MAIL_FROM` | Resend で許可された From（例: `名前 <you@example.com>`） |
+| `NEXT_PUBLIC_APP_URL` | 予約 URL のコピーに使うオリジン。末尾スラッシュなし |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`SUPABASE_SERVICE_ROLE_KEY` はクライアントのコードに出さない。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Vercel
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. このリポジトリを Import する。
+2. Project Settings → Environment Variables に上表をすべて入れる（Production / Preview とも）。
+3. Production の `NEXT_PUBLIC_APP_URL` は公開 URL（例: `https://example.vercel.app`）。
+4. `NEXT_PUBLIC_*` を変えたあとは再デプロイする（ビルド時に埋め込まれるため）。
