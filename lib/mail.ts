@@ -86,7 +86,7 @@ export async function sendBookingCreatedMails(payload: BookingMailPayload) {
     guest: {
       to: payload.email,
       subject: "【ちょこっと整体 予約】予約が完了しました",
-      text: `予約を受け付けました。\n\n${summary}\n\n当日は時間に余裕をもってお越しください。\n\n施術前に以下のカウンセリングフォームへの回答をお願いいたします。\n\n▼施術前カウンセリングフォーム\nhttps://forms.gle/f17Ch9tAZfSY53LL7`,
+      text: `予約を受け付けました。\n\n${summary}\n\n当日は時間に余裕をもってお越しください。\n\n▼施術前カウンセリングフォーム\n当日、安全に施術を行うため、事前にお身体の状況を確認させていただければと思っております。\n下記URLより初回カウンセリングフォームへのご回答をお願いいたします。\nhttps://forms.gle/f17Ch9tAZfSY53LL7`,
     },
     admin: {
       subject: "【ちょこっと整体 予約】新しい予約があります",
