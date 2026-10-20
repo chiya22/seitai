@@ -1,8 +1,10 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  cancelScheduledMail,
   sendBookingCancelledMails,
   sendBookingCreatedMails,
 } from "@/lib/mail";
+import { scheduleReminderForBooking } from "@/lib/reminder";
 import { eventStatus, type EventStatus } from "@/lib/time";
 
 export class BookingError extends Error {
@@ -168,16 +170,19 @@ export async function createBooking(input: {
     throw new BookingError("予約を保存できませんでした。");
   }
 
-  await notifyBookingSafely(() =>
-    sendBookingCreatedMails({
-      date: event.date,
-      startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
-      companyName,
-      guestName,
-      email,
-    }),
-  );
+  const mailPayload = {
+    date: event.date,
+    startsAt: slot.startsAt,
+    endsAt: slot.endsAt,
+    companyName,
+    guestName,
+    email,
+  };
+
+  await notifyBookingSafely(() => sendBookingCreatedMails(mailPayload));
+  await notifyBookingSafely(async () => {
+    await scheduleReminderForBooking(data.id, mailPayload);
+  });
 
   return { id: data.id, eventId: event.id };
 }
@@ -190,7 +195,7 @@ export async function cancelBooking(bookingId: string): Promise<{
   const { data: booking, error: loadError } = await admin
     .from("bookings")
     .select(
-      "id, cancelled_at, company_name, guest_name, email, event_id, events!inner(date, public_token), slots!inner(starts_at, ends_at)",
+      "id, cancelled_at, reminder_email_id, company_name, guest_name, email, event_id, events!inner(date, public_token), slots!inner(starts_at, ends_at)",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -217,16 +222,19 @@ export async function cancelBooking(bookingId: string): Promise<{
     throw new BookingError("この予約はすでに取り消されています。");
   }
 
-  await notifyBookingSafely(() =>
-    sendBookingCancelledMails({
+  await notifyBookingSafely(async () => {
+    if (booking.reminder_email_id) {
+      await cancelScheduledMail(booking.reminder_email_id);
+    }
+    await sendBookingCancelledMails({
       date: booking.events.date,
       startsAt: booking.slots.starts_at,
       endsAt: booking.slots.ends_at,
       companyName: booking.company_name,
       guestName: booking.guest_name,
       email: booking.email,
-    }),
-  );
+    });
+  });
 
   return {
     eventId: booking.event_id,

@@ -39,42 +39,49 @@ async function sendMail(input: {
   to: string;
   subject: string;
   text: string;
-}) {
-  const { error } = await getResend().emails.send({
+  scheduledAt?: string;
+  bcc?: string;
+}): Promise<string> {
+  const { data, error } = await getResend().emails.send({
     from: getMailFrom(),
     to: input.to,
+    bcc: input.bcc,
     subject: input.subject,
     text: input.text,
+    scheduledAt: input.scheduledAt,
   });
   if (error) {
     throw new Error(error.message);
   }
+  if (!data?.id) {
+    throw new Error("メールIDを取得できませんでした。");
+  }
+  return data.id;
 }
 
-async function sendToGuestAndAdmin(input: {
-  guest: { to: string; subject: string; text: string };
-  admin: { subject: string; text: string };
-}) {
+async function adminBccFor(guestEmail: string): Promise<string | undefined> {
   const adminEmail = await getAdminNotifyEmail();
-  const jobs = [sendMail(input.guest)];
-  if (adminEmail) {
-    jobs.push(
-      sendMail({
-        to: adminEmail,
-        subject: input.admin.subject,
-        text: input.admin.text,
-      }),
-    );
-  } else {
+  if (!adminEmail) {
     console.error("管理者メールアドレスが取得できないため、管理者通知を送れませんでした。");
+    return undefined;
   }
+  if (adminEmail.toLowerCase() === guestEmail.toLowerCase()) {
+    return undefined;
+  }
+  return adminEmail;
+}
 
-  const results = await Promise.allSettled(jobs);
-  for (const result of results) {
-    if (result.status === "rejected") {
-      console.error("メール送信に失敗しました。", result.reason);
-    }
-  }
+async function sendGuestMail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  scheduledAt?: string;
+}): Promise<string> {
+  const bcc = await adminBccFor(input.to);
+  return sendMail({
+    ...input,
+    bcc,
+  });
 }
 
 export async function sendBookingCreatedMails(payload: BookingMailPayload) {
@@ -82,17 +89,37 @@ export async function sendBookingCreatedMails(payload: BookingMailPayload) {
     return;
   }
   const summary = bookingLines(payload);
-  await sendToGuestAndAdmin({
-    guest: {
-      to: payload.email,
-      subject: "【ちょこっと整体 予約】予約が完了しました",
-      text: `予約を受け付けました。\n\n${summary}\n\n当日は時間に余裕をもってお越しください。\n\n施術前に以下のカウンセリングフォームへの回答をお願いいたします。\n\n▼施術前カウンセリングフォーム\nhttps://forms.gle/f17Ch9tAZfSY53LL7`,
-    },
-    admin: {
-      subject: "【ちょこっと整体 予約】新しい予約があります",
-      text: `新しい予約が入りました。\n\n${summary}\nメールアドレス: ${payload.email}`,
-    },
+  await sendGuestMail({
+    to: payload.email,
+    subject: "【ちょこっと整体 予約】予約が完了しました",
+    text: `予約を受け付けました。\n\n${summary}\n\n当日は時間に余裕をもってお越しください。\n\n施術前に以下のカウンセリングフォームへの回答をお願いいたします。\n\n▼施術前カウンセリングフォーム\nhttps://forms.gle/f17Ch9tAZfSY53LL7`,
   });
+}
+
+export async function scheduleBookingReminderMail(
+  payload: BookingMailPayload,
+  scheduledAt: string,
+): Promise<string | null> {
+  if (process.env.SKIP_MAIL === "1") {
+    return null;
+  }
+  const summary = bookingLines(payload);
+  return sendGuestMail({
+    to: payload.email,
+    subject: "【ちょこっと整体 予約】まもなく開始時間です",
+    text: `まもなく予約の時間です。\n\n${summary}\n\n時間に余裕をもってお越しください。`,
+    scheduledAt,
+  });
+}
+
+export async function cancelScheduledMail(emailId: string): Promise<void> {
+  if (process.env.SKIP_MAIL === "1" || !emailId) {
+    return;
+  }
+  const { error } = await getResend().emails.cancel(emailId);
+  if (error) {
+    console.error("予約リマインドメールのキャンセルに失敗しました。", error.message);
+  }
 }
 
 export async function sendBookingCancelledMails(payload: BookingMailPayload) {
@@ -100,15 +127,9 @@ export async function sendBookingCancelledMails(payload: BookingMailPayload) {
     return;
   }
   const summary = bookingLines(payload);
-  await sendToGuestAndAdmin({
-    guest: {
-      to: payload.email,
-      subject: "【ちょこっと整体 予約】予約が取り消されました",
-      text: `管理者により、次の予約が取り消されました。\n\n${summary}\n\nご不明点は管理者へご連絡ください。`,
-    },
-    admin: {
-      subject: "【ちょこっと整体 予約】予約を取り消しました",
-      text: `次の予約を取り消しました。コマは再び予約できます。\n\n${summary}\nメールアドレス: ${payload.email}`,
-    },
+  await sendGuestMail({
+    to: payload.email,
+    subject: "【ちょこっと整体 予約】予約が取り消されました",
+    text: `管理者により、次の予約が取り消されました。\n\n${summary}\n\nご不明点は管理者へご連絡ください。`,
   });
 }

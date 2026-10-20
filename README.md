@@ -36,6 +36,12 @@ npm run lint
 
 `SUPABASE_SERVICE_ROLE_KEY` はクライアントのコードに出さない。
 
+既存予約へ開始10分前リマインドを後から予約するには:
+
+```bash
+npm run backfill-reminders
+```
+
 ## Vercel
 
 1. このリポジトリを Import する。

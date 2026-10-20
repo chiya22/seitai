@@ -23,6 +23,7 @@ export type Database = {
           event_id: string;
           guest_name: string;
           id: string;
+          reminder_email_id: string | null;
           slot_id: string;
         };
         Insert: {
@@ -33,6 +34,7 @@ export type Database = {
           event_id: string;
           guest_name: string;
           id?: string;
+          reminder_email_id?: string | null;
           slot_id: string;
         };
         Update: {
@@ -43,6 +45,7 @@ export type Database = {
           event_id?: string;
           guest_name?: string;
           id?: string;
+          reminder_email_id?: string | null;
           slot_id?: string;
         };
         Relationships: [

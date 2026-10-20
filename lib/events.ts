@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { cancelRemindersForEvent } from "@/lib/reminder";
 import { generateSlots } from "@/lib/slots";
 import { eventStatus, type EventStatus } from "@/lib/time";
 
@@ -194,6 +195,11 @@ export async function createEvent(input: {
 
 export async function deleteEvent(id: string): Promise<void> {
   const admin = createSupabaseAdminClient();
+  try {
+    await cancelRemindersForEvent(id);
+  } catch (error) {
+    console.error("開催削除前のリマインドキャンセルに失敗しました。", error);
+  }
   const { error } = await admin.from("events").delete().eq("id", id);
   if (error) {
     throw error;
