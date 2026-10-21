@@ -46,7 +46,7 @@
 | email | text | not null（保存時は小文字） |
 | created_at | timestamptz | not null、default now() |
 | cancelled_at | timestamptz | null なら有効 |
-| reminder_email_id | text | null 可。開始10分前リマインドの Resend メールID |
+| reminder_email_id | text | null 可。開始5分前リマインドの Resend メールID |
 
 有効予約だけを対象にするユニーク制約（部分インデックス）:
 

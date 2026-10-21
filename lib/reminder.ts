@@ -5,7 +5,7 @@ import {
   type BookingMailPayload,
 } from "@/lib/mail";
 
-export const REMINDER_LEAD_MS = 10 * 60 * 1000;
+export const REMINDER_LEAD_MS = 5 * 60 * 1000;
 export const RESEND_SCHEDULE_LIMIT_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function reminderScheduledAt(
