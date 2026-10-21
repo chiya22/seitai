@@ -6,8 +6,10 @@ import { requireAdmin } from "@/lib/auth";
 import {
   BookingError,
   cancelBooking,
+  createAdminBooking,
   sendSurveyForBooking,
   sendSurveyForEvent,
+  updateBooking,
 } from "@/lib/booking";
 import {
   createEvent,
@@ -22,6 +24,11 @@ export type EventFormState = {
 } | null;
 
 export type SurveyUrlFormState = {
+  error: string;
+  saved: boolean;
+} | null;
+
+export type AdminBookingFormState = {
   error: string;
   saved: boolean;
 } | null;
@@ -156,6 +163,62 @@ export async function sendAllSurveysAction(formData: FormData) {
     redirect(`/admin/events/${eventId}?mail=partial`);
   }
   redirect(`/admin/events/${eventId}?mail=sent-all`);
+}
+
+export async function updateBookingAction(
+  _prev: AdminBookingFormState,
+  formData: FormData,
+): Promise<AdminBookingFormState> {
+  await requireAdmin();
+  const bookingId = readString(formData, "bookingId");
+  const eventId = readString(formData, "eventId");
+  const companyName = readString(formData, "companyName");
+  const guestName = readString(formData, "guestName");
+  const email = readString(formData, "email");
+  if (!bookingId || !eventId) {
+    return { error: "予約が見つかりません。", saved: false };
+  }
+
+  try {
+    await updateBooking({ bookingId, companyName, guestName, email });
+  } catch (error) {
+    if (error instanceof BookingError) {
+      return { error: error.message, saved: false };
+    }
+    return { error: "予約を保存できませんでした。", saved: false };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/events/${eventId}`);
+  return { error: "", saved: true };
+}
+
+export async function createAdminBookingAction(
+  _prev: AdminBookingFormState,
+  formData: FormData,
+): Promise<AdminBookingFormState> {
+  await requireAdmin();
+  const eventId = readString(formData, "eventId");
+  const slotId = readString(formData, "slotId");
+  const companyName = readString(formData, "companyName");
+  const guestName = readString(formData, "guestName");
+  const email = readString(formData, "email");
+  if (!eventId || !slotId) {
+    return { error: "コマが見つかりません。", saved: false };
+  }
+
+  try {
+    await createAdminBooking({ eventId, slotId, companyName, guestName, email });
+  } catch (error) {
+    if (error instanceof BookingError) {
+      return { error: error.message, saved: false };
+    }
+    return { error: "予約を保存できませんでした。", saved: false };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/events/${eventId}`);
+  return { error: "", saved: true };
 }
 
 export async function cancelBookingAction(formData: FormData) {

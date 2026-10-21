@@ -107,13 +107,11 @@ export async function getPublicEventByToken(
   return toPublicEvent(data);
 }
 
-export async function createBooking(input: {
-  token: string;
-  slotId: string;
+function normalizeBookingFields(input: {
   companyName: string;
   guestName: string;
   email: string;
-}): Promise<{ id: string; eventId: string }> {
+}) {
   const companyName = input.companyName.trim();
   const guestName = input.guestName.trim();
   const email = input.email.trim().toLowerCase();
@@ -127,6 +125,29 @@ export async function createBooking(input: {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new BookingError("メールアドレスの形式が正しくありません。");
   }
+
+  return { companyName, guestName, email };
+}
+
+function throwBookingSaveError(error: { code?: string; message: string; details?: string }) {
+  const text = `${error.message} ${error.details ?? ""}`;
+  if (error.code === "23505") {
+    if (text.includes("bookings_one_email_per_event")) {
+      throw new BookingError("このメールアドレスでは既に予約済みです。");
+    }
+    throw new BookingError("そのコマは直前に埋まりました。");
+  }
+  throw new BookingError("予約を保存できませんでした。");
+}
+
+export async function createBooking(input: {
+  token: string;
+  slotId: string;
+  companyName: string;
+  guestName: string;
+  email: string;
+}): Promise<{ id: string; eventId: string }> {
+  const { companyName, guestName, email } = normalizeBookingFields(input);
 
   const event = await getPublicEventByToken(input.token);
   if (!event) {
@@ -158,14 +179,7 @@ export async function createBooking(input: {
     .single();
 
   if (error) {
-    const text = `${error.message} ${error.details ?? ""}`;
-    if (error.code === "23505") {
-      if (text.includes("bookings_one_email_per_event")) {
-        throw new BookingError("このメールアドレスでは既に予約済みです。");
-      }
-      throw new BookingError("そのコマは直前に埋まりました。");
-    }
-    throw new BookingError("予約を保存できませんでした。");
+    throwBookingSaveError(error);
   }
 
   if (!data) {
@@ -176,6 +190,108 @@ export async function createBooking(input: {
     date: event.date,
     startsAt: slot.startsAt,
     endsAt: slot.endsAt,
+    companyName,
+    guestName,
+    email,
+  };
+
+  await notifyBookingSafely(() => sendBookingCreatedMails(mailPayload));
+  await notifyBookingSafely(async () => {
+    await scheduleReminderForBooking(data.id, mailPayload);
+  });
+
+  return { id: data.id, eventId: event.id };
+}
+
+export async function updateBooking(input: {
+  bookingId: string;
+  companyName: string;
+  guestName: string;
+  email: string;
+}): Promise<{ eventId: string }> {
+  const { companyName, guestName, email } = normalizeBookingFields(input);
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("bookings")
+    .update({
+      company_name: companyName,
+      guest_name: guestName,
+      email,
+    })
+    .eq("id", input.bookingId)
+    .is("cancelled_at", null)
+    .select("event_id")
+    .maybeSingle();
+
+  if (error) {
+    throwBookingSaveError(error);
+  }
+  if (!data) {
+    throw new BookingError("この予約はすでに取り消されています。");
+  }
+
+  return { eventId: data.event_id };
+}
+
+export async function createAdminBooking(input: {
+  eventId: string;
+  slotId: string;
+  companyName: string;
+  guestName: string;
+  email: string;
+}): Promise<{ id: string; eventId: string }> {
+  const { companyName, guestName, email } = normalizeBookingFields(input);
+  const admin = createSupabaseAdminClient();
+  const { data: event, error: eventError } = await admin
+    .from("events")
+    .select("id, date, public_token")
+    .eq("id", input.eventId)
+    .maybeSingle();
+
+  if (eventError) {
+    throw eventError;
+  }
+  if (!event) {
+    throw new BookingError("この開催は見つかりません。");
+  }
+
+  const { data: slot, error: slotError } = await admin
+    .from("slots")
+    .select("id, starts_at, ends_at, event_id")
+    .eq("id", input.slotId)
+    .eq("event_id", input.eventId)
+    .maybeSingle();
+
+  if (slotError) {
+    throw slotError;
+  }
+  if (!slot) {
+    throw new BookingError("コマを選択してください。");
+  }
+
+  const { data, error } = await admin
+    .from("bookings")
+    .insert({
+      event_id: event.id,
+      slot_id: slot.id,
+      company_name: companyName,
+      guest_name: guestName,
+      email,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throwBookingSaveError(error);
+  }
+  if (!data) {
+    throw new BookingError("予約を保存できませんでした。");
+  }
+
+  const mailPayload = {
+    date: event.date,
+    startsAt: slot.starts_at,
+    endsAt: slot.ends_at,
     companyName,
     guestName,
     email,

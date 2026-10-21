@@ -2,13 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminHeader } from "@/components/admin-header";
-import { CancelBookingButton } from "@/components/cancel-booking-button";
+import { AdminSlotRow } from "@/components/admin-slot-row";
 import { CopyUrlButton } from "@/components/copy-url-button";
 import { DeleteEventButton } from "@/components/delete-event-button";
-import {
-  SendAllSurveysButton,
-  SendSurveyButton,
-} from "@/components/send-survey-button";
+import { SendAllSurveysButton } from "@/components/send-survey-button";
 import { SurveyUrlForm } from "@/components/survey-url-form";
 import { getEventDetail } from "@/lib/events";
 import { getAppUrl } from "@/lib/env";
@@ -139,43 +136,17 @@ export default async function EventDetailPage({
           </thead>
           <tbody>
             {event.slots.map((slot) => (
-              <tr key={slot.id} className="border-b border-stone-100">
-                <td className="py-3 pr-3 text-stone-900">
-                  {formatSlotRange(slot.startsAt, slot.endsAt)}
-                </td>
-                <td className="py-3 pr-3 break-all text-stone-700">
-                  {slot.booking ? (
-                    <span>
-                      {slot.booking.companyName} / {slot.booking.guestName}
-                      <span className="mt-0.5 block text-stone-500">
-                        {slot.booking.email}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-stone-400">空き</span>
-                  )}
-                </td>
-                <td className="py-3 pr-3 text-stone-600">
-                  {slot.booking ? formatDateTime(slot.booking.createdAt) : "—"}
-                </td>
-                <td className="py-3">
-                  {slot.booking ? (
-                    <div className="flex flex-col items-start gap-2">
-                      <SendSurveyButton
-                        bookingId={slot.booking.id}
-                        eventId={event.id}
-                        enabled={Boolean(event.surveyUrl)}
-                      />
-                      <CancelBookingButton
-                        bookingId={slot.booking.id}
-                        eventId={event.id}
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-stone-300">—</span>
-                  )}
-                </td>
-              </tr>
+              <AdminSlotRow
+                key={slot.id}
+                eventId={event.id}
+                slotId={slot.id}
+                timeLabel={formatSlotRange(slot.startsAt, slot.endsAt)}
+                createdLabel={
+                  slot.booking ? formatDateTime(slot.booking.createdAt) : "—"
+                }
+                surveyEnabled={Boolean(event.surveyUrl)}
+                booking={slot.booking}
+              />
             ))}
           </tbody>
         </table>
