@@ -16,6 +16,7 @@
 | break_minutes | integer | not null、>= 0 |
 | public_token | text | not null、unique |
 | created_at | timestamptz | not null、default now() |
+| survey_url | text | null 可。施術後アンケートの回答URL |
 
 チェック: `end_time > start_time`。
 

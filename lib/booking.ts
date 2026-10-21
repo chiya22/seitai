@@ -3,6 +3,8 @@ import {
   cancelScheduledMail,
   sendBookingCancelledMails,
   sendBookingCreatedMails,
+  sendSurveyRequestMail,
+  type BookingMailPayload,
 } from "@/lib/mail";
 import { scheduleReminderForBooking } from "@/lib/reminder";
 import { eventStatus, type EventStatus } from "@/lib/time";
@@ -240,6 +242,114 @@ export async function cancelBooking(bookingId: string): Promise<{
     eventId: booking.event_id,
     token: booking.events.public_token,
   };
+}
+
+function toMailPayload(booking: {
+  company_name: string;
+  guest_name: string;
+  email: string;
+  events: { date: string };
+  slots: { starts_at: string; ends_at: string };
+}): BookingMailPayload {
+  return {
+    date: booking.events.date,
+    startsAt: booking.slots.starts_at,
+    endsAt: booking.slots.ends_at,
+    companyName: booking.company_name,
+    guestName: booking.guest_name,
+    email: booking.email,
+  };
+}
+
+export async function sendSurveyForBooking(bookingId: string): Promise<{
+  eventId: string;
+}> {
+  const admin = createSupabaseAdminClient();
+  const { data: booking, error } = await admin
+    .from("bookings")
+    .select(
+      "id, cancelled_at, company_name, guest_name, email, event_id, events!inner(date, survey_url), slots!inner(starts_at, ends_at)",
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  if (!booking || booking.cancelled_at) {
+    throw new BookingError("この予約はすでに取り消されています。");
+  }
+  const surveyUrl = booking.events.survey_url?.trim();
+  if (!surveyUrl) {
+    throw new BookingError("先にアンケートURLを保存してください。");
+  }
+
+  await sendSurveyRequestMail(toMailPayload(booking), surveyUrl);
+  return { eventId: booking.event_id };
+}
+
+export async function sendSurveyForEvent(eventId: string): Promise<{
+  sent: number;
+  failed: number;
+}> {
+  const admin = createSupabaseAdminClient();
+  const { data: event, error: eventError } = await admin
+    .from("events")
+    .select("id, date, survey_url")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (eventError) {
+    throw eventError;
+  }
+  if (!event) {
+    throw new BookingError("この開催は見つかりません。");
+  }
+  const surveyUrl = event.survey_url?.trim();
+  if (!surveyUrl) {
+    throw new BookingError("先にアンケートURLを保存してください。");
+  }
+
+  const { data: bookings, error: bookingError } = await admin
+    .from("bookings")
+    .select(
+      "id, cancelled_at, company_name, guest_name, email, slots!inner(starts_at, ends_at)",
+    )
+    .eq("event_id", eventId)
+    .is("cancelled_at", null);
+
+  if (bookingError) {
+    throw bookingError;
+  }
+
+  const targets = bookings ?? [];
+  if (targets.length === 0) {
+    throw new BookingError("送信できる予約がありません。");
+  }
+
+  let sent = 0;
+  let failed = 0;
+  for (const booking of targets) {
+    try {
+      await sendSurveyRequestMail(
+        {
+          date: event.date,
+          startsAt: booking.slots.starts_at,
+          endsAt: booking.slots.ends_at,
+          companyName: booking.company_name,
+          guestName: booking.guest_name,
+          email: booking.email,
+        },
+        surveyUrl,
+      );
+      sent += 1;
+    } catch (reason) {
+      console.error("アンケート案内の送信に失敗しました。", booking.id, reason);
+      failed += 1;
+    }
+  }
+
+  return { sent, failed };
 }
 
 async function notifyBookingSafely(send: () => Promise<void>) {

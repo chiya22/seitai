@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/slots.test.ts lib/booking.concurrency.test.ts lib/reminder.test.ts",
+    "test": "tsx --test lib/slots.test.ts lib/booking.concurrency.test.ts lib/reminder.test.ts lib/events.survey.test.ts",
     "backfill-reminders": "tsx scripts/backfill-reminders.ts"
   },
   "dependencies": {

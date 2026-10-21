@@ -75,6 +75,7 @@ export type Database = {
           public_token: string;
           slot_minutes: number;
           start_time: string;
+          survey_url: string | null;
         };
         Insert: {
           break_minutes: number;
@@ -85,6 +86,7 @@ export type Database = {
           public_token: string;
           slot_minutes: number;
           start_time: string;
+          survey_url?: string | null;
         };
         Update: {
           break_minutes?: number;
@@ -95,6 +97,7 @@ export type Database = {
           public_token?: string;
           slot_minutes?: number;
           start_time?: string;
+          survey_url?: string | null;
         };
         Relationships: [];
       };

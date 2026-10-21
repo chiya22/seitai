@@ -5,6 +5,11 @@ import { AdminHeader } from "@/components/admin-header";
 import { CancelBookingButton } from "@/components/cancel-booking-button";
 import { CopyUrlButton } from "@/components/copy-url-button";
 import { DeleteEventButton } from "@/components/delete-event-button";
+import {
+  SendAllSurveysButton,
+  SendSurveyButton,
+} from "@/components/send-survey-button";
+import { SurveyUrlForm } from "@/components/survey-url-form";
 import { getEventDetail } from "@/lib/events";
 import { getAppUrl } from "@/lib/env";
 import { formatSlotRange } from "@/lib/slots";
@@ -20,10 +25,29 @@ export const metadata: Metadata = {
   title: "開催詳細",
 };
 
+function mailNotice(value: string | undefined) {
+  if (value === "sent") {
+    return "アンケート案内を送信しました。";
+  }
+  if (value === "sent-all") {
+    return "予約者全員にアンケート案内を送信しました。";
+  }
+  if (value === "partial") {
+    return "一部の予約者への送信に失敗しました。";
+  }
+  if (value === "error") {
+    return "アンケート案内を送れませんでした。URLの保存と予約の状態を確認してください。";
+  }
+  return null;
+}
+
 export default async function EventDetailPage({
   params,
+  searchParams,
 }: PageProps<"/admin/events/[id]">) {
   const { id } = await params;
+  const query = await searchParams;
+  const notice = mailNotice(typeof query.mail === "string" ? query.mail : undefined);
   const event = await getEventDetail(id);
   if (!event) {
     notFound();
@@ -80,23 +104,46 @@ export default async function EventDetailPage({
         </div>
       </section>
 
-      <section className="mt-8 overflow-x-auto">
-        <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
+      <section className="mt-8">
+        <h2 className="text-sm font-medium text-stone-900">施術後アンケート</h2>
+        <p className="mt-1 text-sm text-stone-500">
+          終了後の回答用URLを保存すると、予約者へ案内メールを送れます。
+        </p>
+        <div className="mt-2">
+          <SurveyUrlForm eventId={event.id} surveyUrl={event.surveyUrl} />
+        </div>
+        <div className="mt-3">
+          <SendAllSurveysButton
+            eventId={event.id}
+            enabled={Boolean(event.surveyUrl)}
+            bookingCount={bookedCount}
+          />
+        </div>
+      </section>
+
+      {notice ? (
+        <p className="mt-6 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800">
+          {notice}
+        </p>
+      ) : null}
+
+      <section className="mt-8">
+        <table className="w-full table-fixed border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-stone-200 text-stone-500">
-              <th className="py-2 pr-3 font-medium">時刻</th>
+              <th className="w-[7.5rem] py-2 pr-3 font-medium">時刻</th>
               <th className="py-2 pr-3 font-medium">予約</th>
-              <th className="py-2 pr-3 font-medium">予約日時</th>
-              <th className="py-2 font-medium">操作</th>
+              <th className="w-[7.5rem] py-2 pr-3 font-medium">予約日時</th>
+              <th className="w-[9.5rem] py-2 font-medium">操作</th>
             </tr>
           </thead>
           <tbody>
             {event.slots.map((slot) => (
               <tr key={slot.id} className="border-b border-stone-100">
-                <td className="py-3 pr-3 whitespace-nowrap text-stone-900">
+                <td className="py-3 pr-3 text-stone-900">
                   {formatSlotRange(slot.startsAt, slot.endsAt)}
                 </td>
-                <td className="py-3 pr-3 text-stone-700">
+                <td className="py-3 pr-3 break-all text-stone-700">
                   {slot.booking ? (
                     <span>
                       {slot.booking.companyName} / {slot.booking.guestName}
@@ -108,15 +155,22 @@ export default async function EventDetailPage({
                     <span className="text-stone-400">空き</span>
                   )}
                 </td>
-                <td className="py-3 pr-3 whitespace-nowrap text-stone-600">
+                <td className="py-3 pr-3 text-stone-600">
                   {slot.booking ? formatDateTime(slot.booking.createdAt) : "—"}
                 </td>
                 <td className="py-3">
                   {slot.booking ? (
-                    <CancelBookingButton
-                      bookingId={slot.booking.id}
-                      eventId={event.id}
-                    />
+                    <div className="flex flex-col items-start gap-2">
+                      <SendSurveyButton
+                        bookingId={slot.booking.id}
+                        eventId={event.id}
+                        enabled={Boolean(event.surveyUrl)}
+                      />
+                      <CancelBookingButton
+                        bookingId={slot.booking.id}
+                        eventId={event.id}
+                      />
+                    </div>
                   ) : (
                     <span className="text-stone-300">—</span>
                   )}

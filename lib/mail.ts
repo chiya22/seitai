@@ -122,6 +122,21 @@ export async function cancelScheduledMail(emailId: string): Promise<void> {
   }
 }
 
+export async function sendSurveyRequestMail(
+  payload: BookingMailPayload,
+  surveyUrl: string,
+) {
+  if (process.env.SKIP_MAIL === "1") {
+    return;
+  }
+  const summary = bookingLines(payload);
+  await sendGuestMail({
+    to: payload.email,
+    subject: "【ちょこっと整体 予約】施術後アンケートのお願い",
+    text: `イベントにご参加いただきありがとうございました。\n\nお身体の様子やご感想をお伺いしたく、下記のアンケートへのご回答をお願いいたします。\n\n▼施術後アンケート\n${surveyUrl}\n\n${summary}\n\nお支払につきましては、毎月の施設利用料と一緒に請求させていただきます。\n毎月の請求と分けて支払いたい場合は、1階コンシェルジュまでお越しください。`,
+  });
+}
+
 export async function sendBookingCancelledMails(payload: BookingMailPayload) {
   if (process.env.SKIP_MAIL === "1") {
     return;

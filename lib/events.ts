@@ -35,6 +35,7 @@ export type SlotWithBooking = {
 };
 
 export type EventDetail = EventRecord & {
+  surveyUrl: string | null;
   slots: SlotWithBooking[];
 };
 
@@ -95,7 +96,7 @@ export async function getEventDetail(id: string): Promise<EventDetail | null> {
   const { data, error } = await admin
     .from("events")
     .select(
-      "id, date, start_time, end_time, slot_minutes, break_minutes, public_token, slots(id, starts_at, ends_at, sort_index, bookings(id, company_name, guest_name, email, created_at, cancelled_at))",
+      "id, date, start_time, end_time, slot_minutes, break_minutes, public_token, survey_url, slots(id, starts_at, ends_at, sort_index, bookings(id, company_name, guest_name, email, created_at, cancelled_at))",
     )
     .eq("id", id)
     .order("sort_index", { referencedTable: "slots", ascending: true })
@@ -116,6 +117,7 @@ export async function getEventDetail(id: string): Promise<EventDetail | null> {
     slot_minutes: data.slot_minutes,
     break_minutes: data.break_minutes,
     public_token: data.public_token,
+    surveyUrl: data.survey_url,
     slots: [...data.slots]
       .sort((left, right) => left.sort_index - right.sort_index)
       .map((slot) => {
@@ -191,6 +193,53 @@ export async function createEvent(input: {
   }
 
   throw new Error(lastError ?? "開催を保存できませんでした。");
+}
+
+export class EventError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EventError";
+  }
+}
+
+export function parseSurveyUrl(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) {
+    return null;
+  }
+  if (value.length > 500) {
+    throw new EventError("URLが長すぎます。");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new EventError("URLの形式が正しくありません。");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new EventError("URLは http または https で始めてください。");
+  }
+  return value;
+}
+
+export async function updateEventSurveyUrl(
+  eventId: string,
+  rawUrl: string,
+): Promise<void> {
+  const surveyUrl = parseSurveyUrl(rawUrl);
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("events")
+    .update({ survey_url: surveyUrl })
+    .eq("id", eventId)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new EventError("開催が見つかりません。");
+  }
 }
 
 export async function deleteEvent(id: string): Promise<void> {
